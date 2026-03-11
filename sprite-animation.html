@@ -30,40 +30,44 @@
         const FRAME_SIZE = 64;
         const ANIMATION_SPEED = 150;
         
-        let character = {
-            x: 200 - FRAME_SIZE / 2,
-            y: 200 - FRAME_SIZE / 2,
-            frame: 0,
-            direction: 'idle',
-            lastFrameTime: 0
-        };
+let character = {
+  x: 200 - FRAME_SIZE / 2,
+  y: 200 - FRAME_SIZE / 2,
+  frame: 0,
+  direction: 'idle',
+  lastFrameTime: 0,
+  lastInputTime: 0
+};
         
-        const keys = {
-            up: false,
-            down: false,
-            left: false,
-            right: false
-        };
+const keys = {
+  up: false,
+  down: false,
+  left: false,
+  right: false,
+  space: false
+};
         
-        document.addEventListener('keydown', (e) => {
-            switch(e.key) {
-                case 'ArrowUp': keys.up = true; break;
-                case 'ArrowDown': keys.down = true; break;
-                case 'ArrowLeft': keys.left = true; break;
-                case 'ArrowRight': keys.right = true; break;
-            }
-            e.preventDefault();
-        });
-        
-        document.addEventListener('keyup', (e) => {
-            switch(e.key) {
-                case 'ArrowUp': keys.up = false; break;
-                case 'ArrowDown': keys.down = false; break;
-                case 'ArrowLeft': keys.left = false; break;
-                case 'ArrowRight': keys.right = false; break;
-            }
-            e.preventDefault();
-        });
+document.addEventListener('keydown', (e) => {
+  switch(e.key) {
+    case 'ArrowUp': keys.up = true; break;
+    case 'ArrowDown': keys.down = true; break;
+    case 'ArrowLeft': keys.left = true; break;
+    case 'ArrowRight': keys.right = true; break;
+    case ' ': keys.space = true; break;
+  }
+  e.preventDefault();
+});
+
+document.addEventListener('keyup', (e) => {
+  switch(e.key) {
+    case 'ArrowUp': keys.up = false; break;
+    case 'ArrowDown': keys.down = false; break;
+    case 'ArrowLeft': keys.left = false; break;
+    case 'ArrowRight': keys.right = false; break;
+    case ' ': keys.space = false; break;
+  }
+  e.preventDefault();
+});
         
         function drawGrid() {
             ctx.fillStyle = '#000';
@@ -87,55 +91,64 @@
             }
         }
         
-        function getSpriteFrame(direction, frameIndex) {
-            const col = {
-                'down': 0,
-                'up': 0,
-                'right': 1,
-                'left': 1,
-                'idle': 0
-            }[direction];
-            
-            let row;
-            if (direction === 'down') {
-                row = frameIndex % 2;
-            } else if (direction === 'up') {
-                row = 2 + (frameIndex % 2);
-            } else if (direction === 'right') {
-                row = frameIndex % 2;
-            } else if (direction === 'left') {
-                row = 2 + (frameIndex % 2);
-            } else {
-                row = 0;
-            }
-            
-            return { col, row };
-        }
+function getSpriteFrame(direction, frameIndex) {
+  let col, row;
+
+  if (direction === 'down') {
+    col = frameIndex % 2;
+    row = 0;
+  } else if (direction === 'up') {
+    col = 2 + (frameIndex % 2);
+    row = 0;
+  } else if (direction === 'left') {
+    col = frameIndex % 2;
+    row = 1;
+  } else if (direction === 'right') {
+    col = 2 + (frameIndex % 2);
+    row = 1;
+  } else if (direction === 'space') {
+    col = frameIndex % 4;
+    row = 2;
+  } else {
+    col = frameIndex % 4;
+    row = 3;
+  }
+
+  return { col, row };
+}
         
-        function update(currentTime) {
-            let newDirection = 'idle';
-            
-            if (keys.down) newDirection = 'down';
-            else if (keys.up) newDirection = 'up';
-            else if (keys.right) newDirection = 'right';
-            else if (keys.left) newDirection = 'left';
-            
-            character.direction = newDirection;
-            
-            const speed = 3;
-            if (keys.up) character.y -= speed;
-            if (keys.down) character.y += speed;
-            if (keys.left) character.x -= speed;
-            if (keys.right) character.x += speed;
-            
-            character.x = Math.max(0, Math.min(canvas.width - FRAME_SIZE, character.x));
-            character.y = Math.max(0, Math.min(canvas.height - FRAME_SIZE, character.y));
-            
-            if (currentTime - character.lastFrameTime > ANIMATION_SPEED) {
-                character.frame++;
-                character.lastFrameTime = currentTime;
-            }
-        }
+function update(currentTime) {
+  let newDirection = 'idle';
+  let hasInput = keys.space || keys.down || keys.up || keys.right || keys.left;
+
+  if (keys.space) newDirection = 'space';
+  else if (keys.down) newDirection = 'down';
+  else if (keys.up) newDirection = 'up';
+  else if (keys.right) newDirection = 'right';
+  else if (keys.left) newDirection = 'left';
+
+  if (hasInput) {
+    character.lastInputTime = currentTime;
+  } else if (currentTime - character.lastInputTime > 3000) {
+    newDirection = 'idle';
+  }
+
+  character.direction = newDirection;
+
+  const speed = 3;
+  if (keys.up) character.y -= speed;
+  if (keys.down) character.y += speed;
+  if (keys.left) character.x -= speed;
+  if (keys.right) character.x += speed;
+
+  character.x = Math.max(0, Math.min(canvas.width - FRAME_SIZE, character.x));
+  character.y = Math.max(0, Math.min(canvas.height - FRAME_SIZE, character.y));
+
+  if (currentTime - character.lastFrameTime > ANIMATION_SPEED) {
+    character.frame++;
+    character.lastFrameTime = currentTime;
+  }
+}
         
         function draw() {
             drawGrid();
