@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sprite Animation</title>
+<title>Enemy Animation Test</title>
 <style>
 body {
   margin: 0;
@@ -24,83 +24,80 @@ canvas {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-const playerSprite = new Image();
-playerSprite.src = 'W6.png';
-
 const enemySprite = new Image();
 enemySprite.src = 'pus.png';
 
 const FRAME_SIZE = 64;
 const ANIMATION_SPEED = 150;
-const ENEMY_SHOOT_SPEED = 1000;
-const STOP_DISTANCE = 150;
-const SEED_SPEED = 1;
-const SEED_SIZE = 10;
+const ATTACK_INTERVAL = 3000;
+const MOVE_SPEED = 2;
+const SEED_SPEED = 3;
+const SEED_SIZE = 3;
 
-let character = {
-  x: 300 - FRAME_SIZE / 2,
-  y: 300 - FRAME_SIZE / 2,
-  frame: 0,
-  direction: 'idle',
-  lastFrameTime: 0,
-  lastInputTime: 0,
-  hp: 50,
-  maxHp: 50,
-  attack: 10,
-  exp: 0,
-  level: 1,
-  nextLevelExp: 100,
-  isAttacking: false,
-  attackFrame: 0,
-  attackTimer: 0
-};
+let enemies = [
+  {
+    x: 128,
+    y: 128,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  },
+  {
+    x: 256,
+    y: 128,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  },
+  {
+    x: 512,
+    y: 128,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  },
+  {
+    x: 64,
+    y: 192,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  },
+  {
+    x: 192,
+    y: 192,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  },
+  {
+    x: 448,
+    y: 192,
+    frame: 0,
+    action: 'idle',
+    lastFrameTime: 0,
+    lastAttackTime: 0,
+    direction: 1,
+    isMoving: true
+  }
+];
 
-const MAX_ENEMIES = 1;
-let waveNumber = 0;
-let enemiesDefeatedInWave = 0;
-let isWaveActive = false;
-let attackRangeBonus = 0;
-
-let enemies = [];
 let seeds = [];
-let gameRunning = true;
-
-const keys = {
-  up: false,
-  down: false,
-  left: false,
-  right: false,
-  space: false
-};
-
-document.addEventListener('keydown', (e) => {
-  switch(e.key) {
-    case 'ArrowUp': keys.up = true; break;
-    case 'ArrowDown': keys.down = true; break;
-    case 'ArrowLeft': keys.left = true; break;
-    case 'ArrowRight': keys.right = true; break;
-    case ' ':
-      if (!keys.space) {
-        keys.space = true;
-        character.isAttacking = true;
-        character.attackFrame = 0;
-        character.attackTimer = 0;
-      }
-      break;
-  }
-  e.preventDefault();
-});
-
-document.addEventListener('keyup', (e) => {
-  switch(e.key) {
-    case 'ArrowUp': keys.up = false; break;
-    case 'ArrowDown': keys.down = false; break;
-    case 'ArrowLeft': keys.left = false; break;
-    case 'ArrowRight': keys.right = false; break;
-    case ' ': keys.space = false; break;
-  }
-  e.preventDefault();
-});
 
 function drawGrid() {
   ctx.fillStyle = '#000';
@@ -124,302 +121,87 @@ function drawGrid() {
   }
 }
 
-function getPlayerSpriteFrame(direction, frameIndex) {
-  let col, row;
-
-  if (direction === 'down') {
-    col = frameIndex % 2;
-    row = 0;
-  } else if (direction === 'up') {
-    col = 2 + (frameIndex % 2);
-    row = 0;
-  } else if (direction === 'left') {
-    col = frameIndex % 2;
-    row = 1;
-  } else if (direction === 'right') {
-    col = 2 + (frameIndex % 2);
-    row = 1;
-  } else if (direction === 'space') {
-    col = frameIndex % 4;
-    row = 2;
-  } else {
-    col = frameIndex % 4;
-    row = 3;
-  }
-
-  return { col, row };
-}
-
 function getEnemySpriteFrame(action, frameIndex) {
   let col, row;
   
-  if (action === 'shoot') {
+  if (action === 'attack') {
     col = frameIndex % 2;
     row = 0;
   } else {
-    col = 2 + (frameIndex % 2);
-    row = 0;
+    col = frameIndex % 2;
+    row = 1;
   }
   
   return { col, row };
 }
 
-function spawnEnemy() {
-  const side = Math.floor(Math.random() * 4);
-  let x, y;
-  
-  switch(side) {
-    case 0: x = Math.random() * (canvas.width - FRAME_SIZE); y = 0; break;
-    case 1: x = canvas.width - FRAME_SIZE; y = Math.random() * (canvas.height - FRAME_SIZE); break;
-    case 2: x = Math.random() * (canvas.width - FRAME_SIZE); y = canvas.height - FRAME_SIZE; break;
-    case 3: x = 0; y = Math.random() * (canvas.height - FRAME_SIZE); break;
-  }
-  
-  enemies.push({
-    x: x,
-    y: y,
-    frame: 0,
-    lastFrameTime: 0,
-    action: 'move',
-    lastShootTime: 0,
-    hp: 1,
-    attack: 1
-  });
-}
-
-function spawnWave() {
-  if (isWaveActive) return;
-  
-  isWaveActive = true;
-  enemiesDefeatedInWave = 0;
-  waveNumber++;
-  
-  spawnEnemy();
-}
-
 function updateEnemy(enemy, currentTime) {
-  if (currentTime - enemy.lastFrameTime > ANIMATION_SPEED) {
-    enemy.frame++;
-    enemy.lastFrameTime = currentTime;
+  if (enemy.action === 'idle') {
+    if (currentTime - enemy.lastAttackTime > ATTACK_INTERVAL) {
+      enemy.action = 'attack';
+      enemy.frame = 0;
+      enemy.lastFrameTime = currentTime;
+      enemy.isMoving = false;
+    } else {
+      if (currentTime - enemy.lastFrameTime > ANIMATION_SPEED) {
+        enemy.frame++;
+        enemy.lastFrameTime = currentTime;
+      }
+      
+      if (enemy.isMoving) {
+        enemy.x += MOVE_SPEED * enemy.direction;
+        
+        if (enemy.x <= 0) {
+          enemy.x = 0;
+          enemy.direction = 1;
+        } else if (enemy.x >= canvas.width - FRAME_SIZE) {
+          enemy.x = canvas.width - FRAME_SIZE;
+          enemy.direction = -1;
+        }
+      }
+    }
+  } else if (enemy.action === 'attack') {
+    if (currentTime - enemy.lastFrameTime > ANIMATION_SPEED) {
+      enemy.frame++;
+      enemy.lastFrameTime = currentTime;
+      
+      if (enemy.frame === 1) {
+        seeds.push({
+          x: enemy.x + FRAME_SIZE / 2,
+          y: enemy.y + FRAME_SIZE
+        });
+      }
+      
+      if (enemy.frame >= 2) {
+        enemy.action = 'idle';
+        enemy.frame = 0;
+        enemy.lastAttackTime = currentTime;
+        enemy.isMoving = true;
+      }
+    }
   }
-  
-  const dx = character.x - enemy.x;
-  const dy = character.y - enemy.y;
-  const distance = Math.sqrt(dx * dx + dy * dy);
-  
-  if (distance <= STOP_DISTANCE) {
-    if (currentTime - enemy.lastShootTime > ENEMY_SHOOT_SPEED) {
-      const seedCenterX = enemy.x + FRAME_SIZE / 2;
-      const seedCenterY = enemy.y + FRAME_SIZE / 2;
-      const charCenterX = character.x + FRAME_SIZE / 2;
-      const charCenterY = character.y + FRAME_SIZE / 2;
-      
-      const seedDx = charCenterX - seedCenterX;
-      const seedDy = charCenterY - seedCenterY;
-      const seedDist = Math.sqrt(seedDx * seedDx + seedDy * seedDy);
-      
-      seeds.push({
-        x: seedCenterX,
-        y: seedCenterY,
-        dx: (seedDx / seedDist) * SEED_SPEED,
-        dy: (seedDy / seedDist) * SEED_SPEED,
-        damage: 1
-      });
-      
-      enemy.lastShootTime = currentTime;
+}
+
+function updateSeeds() {
+  for (let i = seeds.length - 1; i >= 0; i--) {
+    seeds[i].y += SEED_SPEED;
+    
+    if (seeds[i].y > canvas.height) {
+      seeds.splice(i, 1);
     }
   }
 }
 
 function update(currentTime) {
-  if (!gameRunning) return;
-
-  let newDirection = 'idle';
-  let hasInput = keys.space || keys.down || keys.up || keys.right || keys.left;
-
-  if (keys.space) newDirection = 'space';
-  else if (keys.down) newDirection = 'down';
-  else if (keys.up) newDirection = 'up';
-  else if (keys.right) newDirection = 'right';
-  else if (keys.left) newDirection = 'left';
-
-  if (hasInput) {
-    character.lastInputTime = currentTime;
-  } else if (currentTime - character.lastInputTime > 3000) {
-    newDirection = 'idle';
-  }
-
-  character.direction = newDirection;
-
-  const speed = 3;
-  if (keys.up) character.y -= speed;
-  if (keys.down) character.y += speed;
-  if (keys.left) character.x -= speed;
-  if (keys.right) character.x += speed;
-
-  character.x = Math.max(0, Math.min(canvas.width - FRAME_SIZE, character.x));
-  character.y = Math.max(0, Math.min(canvas.height - FRAME_SIZE, character.y));
-
-  if (currentTime - character.lastFrameTime > ANIMATION_SPEED) {
-    character.frame++;
-    character.lastFrameTime = currentTime;
+  for (const enemy of enemies) {
+    updateEnemy(enemy, currentTime);
   }
   
-  if (character.isAttacking) {
-    character.attackTimer += 16;
-    character.attackFrame = Math.floor(character.attackTimer / 50);
-    if (character.attackTimer > 500) {
-      character.isAttacking = false;
-      character.attackFrame = 0;
-      character.attackTimer = 0;
-    }
-  }
-
-  if (enemies.length === 0 && isWaveActive) {
-    enemiesDefeatedInWave = 0;
-    isWaveActive = false;
-  }
-  
-  if (!isWaveActive && enemies.length === 0) {
-    spawnWave();
-  }
-  
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    updateEnemy(enemies[i], currentTime);
-  }
-  
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    if (enemies[i].hp <= 0) {
-      character.exp += 1;
-      enemiesDefeatedInWave++;
-      if (character.exp >= character.nextLevelExp) {
-        character.level++;
-        character.exp -= character.nextLevelExp;
-        character.nextLevelExp = Math.floor(character.nextLevelExp * 1.5);
-        character.maxHp += 10;
-        character.hp = character.maxHp;
-        character.attack += 5;
-        if (attackRangeBonus < 2) {
-          attackRangeBonus++;
-        }
-      }
-      enemies.splice(i, 1);
-    }
-  }
-  
-  for (let i = seeds.length - 1; i >= 0; i--) {
-    seeds[i].x += seeds[i].dx;
-    seeds[i].y += seeds[i].dy;
-    
-    const charCenterX = character.x + FRAME_SIZE / 2;
-    const charCenterY = character.y + FRAME_SIZE / 2;
-    const distToChar = Math.sqrt((seeds[i].x - charCenterX) ** 2 + (seeds[i].y - charCenterY) ** 2);
-    
-    if (distToChar < FRAME_SIZE / 2) {
-      character.hp -= seeds[i].damage;
-      seeds.splice(i, 1);
-      continue;
-    }
-    
-    if (seeds[i].x < 0 || seeds[i].x > canvas.width - SEED_SIZE || seeds[i].y < 0 || seeds[i].y > canvas.height - SEED_SIZE) {
-      seeds.splice(i, 1);
-      continue;
-    }
-    
-    if (character.isAttacking && character.attackFrame < 10) {
-      const swordCenterX = character.x + FRAME_SIZE / 2;
-      const swordCenterY = character.y + FRAME_SIZE / 2;
-      const seedX = seeds[i].x;
-      const seedY = seeds[i].y;
-      
-      const dx = seedX - swordCenterX;
-      const dy = seedY - swordCenterY;
-      const distToSeed = Math.sqrt(dx * dx + dy * dy);
-      const currentSwordSize = FRAME_SIZE * 0.7 + attackRangeBonus * FRAME_SIZE * 0.5 + 20;
-      
-      let hit = false;
-      const angle = Math.atan2(dy, dx);
-      
-      if (character.direction === 'down' && dy > 0 && distToSeed <= currentSwordSize) {
-        if (angle > Math.PI * 0.3 && angle < Math.PI * 0.7) hit = true;
-      } else if (character.direction === 'up' && dy < 0 && distToSeed <= currentSwordSize) {
-        if (angle > Math.PI * 1.3 || angle < -Math.PI * 1.3) hit = true;
-      } else if (character.direction === 'left' && dx < 0 && distToSeed <= currentSwordSize) {
-        if (angle > Math.PI * 0.7 || angle < -Math.PI * 0.7) hit = true;
-      } else if (character.direction === 'right' && dx > 0 && distToSeed <= currentSwordSize) {
-        if (angle > -Math.PI * 0.3 && angle < Math.PI * 0.3) hit = true;
-      } else if (character.direction === 'idle' && distToSeed <= currentSwordSize) {
-        hit = true;
-      }
-      
-      if (hit) {
-        seeds.splice(i, 1);
-      }
-    }
-  }
-  
-  if (character.hp <= 0) {
-    gameRunning = false;
-  }
+  updateSeeds();
 }
 
 function draw() {
   drawGrid();
-
-  const { col, row } = getPlayerSpriteFrame(character.direction, character.frame);
-
-  ctx.drawImage(
-    playerSprite,
-    col * FRAME_SIZE, row * FRAME_SIZE,
-    FRAME_SIZE, FRAME_SIZE,
-    character.x, character.y,
-    FRAME_SIZE, FRAME_SIZE
-  );
-  
-  if (character.isAttacking) {
-    const centerX = character.x + FRAME_SIZE / 2;
-    const centerY = character.y + FRAME_SIZE / 2;
-    const baseRadius = FRAME_SIZE * 0.7;
-    const bonusRadius = FRAME_SIZE * 0.5;
-    
-    ctx.save();
-    
-    let startAngle, endAngle;
-    if (character.direction === 'down') {
-      startAngle = Math.PI * 0.3;
-      endAngle = Math.PI * 0.7;
-    } else if (character.direction === 'up') {
-      startAngle = Math.PI * 1.3;
-      endAngle = Math.PI * 1.7;
-    } else if (character.direction === 'left') {
-      startAngle = Math.PI * 0.8;
-      endAngle = Math.PI * 1.2;
-    } else if (character.direction === 'right') {
-      startAngle = -Math.PI * 0.2;
-      endAngle = Math.PI * 0.2;
-    } else {
-      startAngle = 0;
-      endAngle = Math.PI * 2;
-    }
-    
-    for (let i = 0; i <= attackRangeBonus; i++) {
-      const radius = baseRadius + i * bonusRadius;
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-      ctx.lineWidth = i === 0 ? 15 : 10;
-      ctx.strokeStyle = i === 0 ? 'rgba(100, 200, 255, 0.9)' : 'rgba(150, 220, 255, 0.7)';
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      
-      ctx.beginPath();
-      ctx.arc(centerX, centerY, radius - 5, startAngle, endAngle);
-      ctx.strokeStyle = i === 0 ? 'rgba(200, 240, 255, 1.0)' : 'rgba(220, 245, 255, 0.8)';
-      ctx.lineWidth = i === 0 ? 8 : 5;
-      ctx.stroke();
-    }
-    
-    ctx.restore();
-  }
 
   for (const enemy of enemies) {
     const { col, row } = getEnemySpriteFrame(enemy.action, enemy.frame);
@@ -431,46 +213,13 @@ function draw() {
       enemy.x, enemy.y,
       FRAME_SIZE, FRAME_SIZE
     );
-    
-    if (enemy.hit) {
-      ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
-      ctx.fillRect(enemy.x, enemy.y, FRAME_SIZE, FRAME_SIZE);
-      enemy.hit = false;
-    }
   }
   
   for (const seed of seeds) {
     ctx.beginPath();
     ctx.arc(seed.x, seed.y, SEED_SIZE, 0, Math.PI * 2);
-    ctx.fillStyle = '#FFD700';
-    ctx.fill();
-    ctx.strokeStyle = '#FFA500';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }
-
-  ctx.fillStyle = '#fff';
-  ctx.font = '16px Arial';
-  ctx.textAlign = 'left';
-  ctx.fillText(`HP: ${character.hp}/${character.maxHp}`, 10, 20);
-  ctx.fillText(`ATK: ${character.attack}`, 10, 40);
-  ctx.fillText(`EXP: ${character.exp}/${character.nextLevelExp}`, 10, 60);
-  ctx.fillText(`LV: ${character.level}`, 10, 80);
-  ctx.fillText(`Enemies: ${enemies.length}`, 10, 100);
-  ctx.fillText(`Wave: ${waveNumber}`, 10, 120);
-  ctx.fillText(`Attack Range: +${attackRangeBonus}`, 10, 140);
-  
-  if (!gameRunning) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
     ctx.fillStyle = '#fff';
-    ctx.font = '48px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
-    ctx.font = '24px Arial';
-    ctx.fillText(`Final Level: ${character.level}`, canvas.width / 2, canvas.height / 2 + 50);
-    ctx.textAlign = 'left';
+    ctx.fill();
   }
 }
 
@@ -480,11 +229,8 @@ function gameLoop(currentTime) {
   requestAnimationFrame(gameLoop);
 }
 
-playerSprite.onload = () => {
-  enemySprite.onload = () => {
-    spawnWave();
-    requestAnimationFrame(gameLoop);
-  };
+enemySprite.onload = () => {
+  requestAnimationFrame(gameLoop);
 };
 </script>
 </body>
