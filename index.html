@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Enemy Animation Test</title>
+<title>Sprite Animation</title>
 <style>
 body {
   margin: 0;
@@ -24,8 +24,14 @@ canvas {
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+const playerSprite = new Image();
+playerSprite.src = 'T2.png';
+
 const enemySprite = new Image();
 enemySprite.src = 'pus.png';
+
+const bgImage = new Image();
+bgImage.src = 'GAMEBKG.png';
 
 const FRAME_SIZE = 64;
 const ANIMATION_SPEED = 150;
@@ -33,95 +39,255 @@ const ATTACK_INTERVAL = 3000;
 const MOVE_SPEED = 2;
 const SEED_SPEED = 3;
 const SEED_SIZE = 3;
+const PLAYER_SPEED = 3;
+const PLAYER_BULLET_SPEED = 8;
+const PLAYER_BULLET_SIZE = 8;
+const MAX_LEVEL = 10;
+
+let player = {
+  x: 300 - FRAME_SIZE / 2,
+  y: 600 - FRAME_SIZE - 20,
+  frame: 0,
+  action: 'idle',
+  lastFrameTime: 0,
+  isAttacking: false,
+  attackFrame: 0,
+  attackTimer: 0,
+  hp: 20,
+  maxHp: 20,
+  attack: 5,
+  exp: 0,
+  level: 1,
+  nextLevelExp: 5
+};
 
 let enemies = [
   {
     x: 128,
-    y: 128,
+    y: 128 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   },
   {
     x: 256,
-    y: 128,
+    y: 128 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   },
   {
     x: 512,
-    y: 128,
+    y: 128 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   },
   {
     x: 64,
-    y: 192,
+    y: 192 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   },
   {
     x: 192,
-    y: 192,
+    y: 192 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   },
   {
     x: 448,
-    y: 192,
+    y: 192 + 128,
     frame: 0,
     action: 'idle',
     lastFrameTime: 0,
     lastAttackTime: 0,
     direction: 1,
-    isMoving: true
+    isMoving: true,
+    hp: 10,
+    attack: 5
   }
 ];
 
 let seeds = [];
+let playerBullets = [];
+let killCount = 0;
+
+const keys = {
+  up: false,
+  down: false,
+  left: false,
+  right: false,
+  space: false
+};
+
+document.addEventListener('keydown', (e) => {
+  switch(e.key) {
+    case 'ArrowUp': keys.up = true; break;
+    case 'ArrowDown': keys.down = true; break;
+    case 'ArrowLeft': keys.left = true; break;
+    case 'ArrowRight': keys.right = true; break;
+    case ' ':
+      if (!keys.space) {
+        keys.space = true;
+        player.isAttacking = true;
+        player.attackFrame = 0;
+        player.attackTimer = 0;
+      }
+      break;
+  }
+  e.preventDefault();
+});
+
+document.addEventListener('keyup', (e) => {
+  switch(e.key) {
+    case 'ArrowUp': keys.up = false; break;
+    case 'ArrowDown': keys.down = false; break;
+    case 'ArrowLeft': keys.left = false; break;
+    case 'ArrowRight': keys.right = false; break;
+    case ' ': keys.space = false; break;
+  }
+  e.preventDefault();
+});
 
 function drawGrid() {
-  ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.strokeStyle = '#fff';
-  ctx.lineWidth = 1;
-
-  for (let x = 0; x <= canvas.width; x += 64) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  }
-
-  for (let y = 0; y <= canvas.height; y += 64) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(canvas.width, y);
-    ctx.stroke();
-  }
+  ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
 }
 
-function getEnemySpriteFrame(action, frameIndex) {
+function getPlayerSpriteFrame(action, frameIndex) {
+  let col, row;
+
+  if (action === 'idle') {
+    col = frameIndex % 4;
+    row = 0;
+  } else if (action === 'move') {
+    col = frameIndex % 4;
+    row = 1;
+  } else if (action === 'attack') {
+    col = frameIndex % 4;
+    row = 2;
+  } else {
+    col = frameIndex % 4;
+    row = 0;
+  }
+
+  return { col, row };
+}
+
+function spawnEnemies() {
+  enemies = [
+    {
+      x: 128,
+      y: 128 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    },
+    {
+      x: 256,
+      y: 128 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    },
+    {
+      x: 512,
+      y: 128 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    },
+    {
+      x: 64,
+      y: 192 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    },
+    {
+      x: 192,
+      y: 192 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    },
+    {
+      x: 448,
+      y: 192 + 128,
+      frame: 0,
+      action: 'idle',
+      lastFrameTime: 0,
+      lastAttackTime: 0,
+      direction: 1,
+      isMoving: true,
+      hp: 10,
+      attack: 5 + (player.level - 1)
+    }
+  ];
+}
+
+function checkPlayerLevelUp() {
+  while (player.exp >= player.nextLevelExp && player.level < MAX_LEVEL) {
+    player.exp -= player.nextLevelExp;
+    player.level++;
+    player.maxHp += 5;
+    player.hp = player.maxHp;
+    player.attack += 5;
+    player.nextLevelExp = player.attack;
+  }
+}
   let col, row;
   
   if (action === 'attack') {
@@ -133,6 +299,54 @@ function getEnemySpriteFrame(action, frameIndex) {
   }
   
   return { col, row };
+}
+
+function updatePlayer(currentTime) {
+  if (player.isAttacking) {
+    player.action = 'attack';
+    player.attackTimer += 16;
+    player.attackFrame = Math.floor(player.attackTimer / ANIMATION_SPEED);
+
+    if (player.attackFrame === 1 && player.attackTimer < ANIMATION_SPEED + 20) {
+      playerBullets.push({
+        x: player.x + FRAME_SIZE / 2,
+        y: player.y
+      });
+    }
+
+    if (player.attackFrame >= 4) {
+      player.isAttacking = false;
+      player.attackFrame = 0;
+      player.attackTimer = 0;
+    }
+
+    if (currentTime - player.lastFrameTime > ANIMATION_SPEED) {
+      player.frame++;
+      player.lastFrameTime = currentTime;
+    }
+  } else if (keys.up || keys.down || keys.left || keys.right) {
+    player.action = 'move';
+
+    if (keys.up) player.y -= PLAYER_SPEED;
+    if (keys.down) player.y += PLAYER_SPEED;
+    if (keys.left) player.x -= PLAYER_SPEED;
+    if (keys.right) player.x += PLAYER_SPEED;
+
+    player.x = Math.max(0, Math.min(canvas.width - FRAME_SIZE, player.x));
+    player.y = Math.max(0, Math.min(canvas.height - FRAME_SIZE, player.y));
+
+    if (currentTime - player.lastFrameTime > ANIMATION_SPEED) {
+      player.frame++;
+      player.lastFrameTime = currentTime;
+    }
+  } else {
+    player.action = 'idle';
+
+    if (currentTime - player.lastFrameTime > ANIMATION_SPEED) {
+      player.frame++;
+      player.lastFrameTime = currentTime;
+    }
+  }
 }
 
 function updateEnemy(enemy, currentTime) {
@@ -147,10 +361,10 @@ function updateEnemy(enemy, currentTime) {
         enemy.frame++;
         enemy.lastFrameTime = currentTime;
       }
-      
+
       if (enemy.isMoving) {
         enemy.x += MOVE_SPEED * enemy.direction;
-        
+
         if (enemy.x <= 0) {
           enemy.x = 0;
           enemy.direction = 1;
@@ -164,14 +378,14 @@ function updateEnemy(enemy, currentTime) {
     if (currentTime - enemy.lastFrameTime > ANIMATION_SPEED) {
       enemy.frame++;
       enemy.lastFrameTime = currentTime;
-      
+
       if (enemy.frame === 1) {
         seeds.push({
           x: enemy.x + FRAME_SIZE / 2,
           y: enemy.y + FRAME_SIZE
         });
       }
-      
+
       if (enemy.frame >= 2) {
         enemy.action = 'idle';
         enemy.frame = 0;
@@ -185,27 +399,50 @@ function updateEnemy(enemy, currentTime) {
 function updateSeeds() {
   for (let i = seeds.length - 1; i >= 0; i--) {
     seeds[i].y += SEED_SPEED;
-    
+
     if (seeds[i].y > canvas.height) {
       seeds.splice(i, 1);
     }
   }
 }
 
+function updatePlayerBullets() {
+  for (let i = playerBullets.length - 1; i >= 0; i--) {
+    playerBullets[i].y -= PLAYER_BULLET_SPEED;
+
+    if (playerBullets[i].y < 0) {
+      playerBullets.splice(i, 1);
+    }
+  }
+}
+
 function update(currentTime) {
+  updatePlayer(currentTime);
+
   for (const enemy of enemies) {
     updateEnemy(enemy, currentTime);
   }
-  
+
   updateSeeds();
+  updatePlayerBullets();
 }
 
 function draw() {
   drawGrid();
 
+  const { col: playerCol, row: playerRow } = getPlayerSpriteFrame(player.action, player.frame);
+  
+  ctx.drawImage(
+    playerSprite,
+    playerCol * FRAME_SIZE, playerRow * FRAME_SIZE,
+    FRAME_SIZE, FRAME_SIZE,
+    player.x, player.y,
+    FRAME_SIZE, FRAME_SIZE
+  );
+
   for (const enemy of enemies) {
     const { col, row } = getEnemySpriteFrame(enemy.action, enemy.frame);
-    
+
     ctx.drawImage(
       enemySprite,
       col * FRAME_SIZE, row * FRAME_SIZE,
@@ -214,11 +451,18 @@ function draw() {
       FRAME_SIZE, FRAME_SIZE
     );
   }
-  
+
   for (const seed of seeds) {
     ctx.beginPath();
     ctx.arc(seed.x, seed.y, SEED_SIZE, 0, Math.PI * 2);
     ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  for (const bullet of playerBullets) {
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, PLAYER_BULLET_SIZE, 0, Math.PI * 2);
+    ctx.fillStyle = '#FFD700';
     ctx.fill();
   }
 }
@@ -229,8 +473,12 @@ function gameLoop(currentTime) {
   requestAnimationFrame(gameLoop);
 }
 
-enemySprite.onload = () => {
-  requestAnimationFrame(gameLoop);
+playerSprite.onload = () => {
+  enemySprite.onload = () => {
+    bgImage.onload = () => {
+      requestAnimationFrame(gameLoop);
+    };
+  };
 };
 </script>
 </body>
