@@ -12,13 +12,58 @@ body {
   align-items: center;
   min-height: 100vh;
   background: #333;
+  gap: 20px;
 }
 canvas {
   border: 2px solid #fff;
 }
+#infoPanel {
+  background: #222;
+  border: 2px solid #fff;
+  padding: 20px;
+  width: 200px;
+  color: #fff;
+  font-family: Arial, sans-serif;
+}
+.stat-row {
+  margin-bottom: 15px;
+}
+.stat-label {
+  font-size: 14px;
+  color: #aaa;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
+<div id="infoPanel">
+  <div class="stat-row">
+    <div class="stat-label">等級</div>
+    <div class="stat-value" id="statLevel">1/10</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-label">生命力</div>
+    <div class="stat-value" id="statHp">20/20</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-label">攻擊力</div>
+    <div class="stat-value" id="statAtk">5</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-label">經驗值</div>
+    <div class="stat-value" id="statExp">0/50</div>
+  </div>
+  <div class="stat-row">
+    <div class="stat-label">擊殺蒲公獸</div>
+    <div class="stat-value" id="statKill">0</div>
+  </div>
+  <div class="stat-row" style="display: none;" class="stat-charge">
+    <div class="stat-label" style="color: #4af;">集氣回復中</div>
+  </div>
+</div>
 <canvas id="gameCanvas" width="600" height="600"></canvas>
 <script>
 const canvas = document.getElementById('gameCanvas');
@@ -35,7 +80,7 @@ bgImage.src = 'GAMEBKG.png';
 
 const FRAME_SIZE = 64;
 const ANIMATION_SPEED = 150;
-const ATTACK_INTERVAL = 3000;
+const BASE_ATTACK_INTERVAL = 3000;
 const MOVE_SPEED = 2;
 const SEED_SPEED = 3;
 const SEED_SIZE = 3;
@@ -53,99 +98,30 @@ let player = {
   isAttacking: false,
   attackFrame: 0,
   attackTimer: 0,
+  isCharging: false,
+  chargeFrame: 0,
+  chargeTimer: 0,
   hp: 20,
   maxHp: 20,
   attack: 5,
   exp: 0,
   level: 1,
-  nextLevelExp: 5
+  nextLevelExp: 50
 };
 
-let enemies = [
-  {
-    x: 128,
-    y: 128 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  },
-  {
-    x: 256,
-    y: 128 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  },
-  {
-    x: 512,
-    y: 128 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  },
-  {
-    x: 64,
-    y: 192 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  },
-  {
-    x: 192,
-    y: 192 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  },
-  {
-    x: 448,
-    y: 192 + 128,
-    frame: 0,
-    action: 'idle',
-    lastFrameTime: 0,
-    lastAttackTime: 0,
-    direction: 1,
-    isMoving: true,
-    hp: 10,
-    attack: 5
-  }
-];
-
+let enemies = [];
 let seeds = [];
 let playerBullets = [];
 let killCount = 0;
+let gameRunning = true;
 
 const keys = {
   up: false,
   down: false,
   left: false,
   right: false,
-  space: false
+  space: false,
+  z: false
 };
 
 document.addEventListener('keydown', (e) => {
@@ -155,11 +131,20 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowLeft': keys.left = true; break;
     case 'ArrowRight': keys.right = true; break;
     case ' ':
-      if (!keys.space) {
+      if (!keys.space && gameRunning) {
         keys.space = true;
         player.isAttacking = true;
         player.attackFrame = 0;
         player.attackTimer = 0;
+      }
+      break;
+    case 'z':
+    case 'Z':
+      if (!keys.z && gameRunning && !player.isAttacking) {
+        keys.z = true;
+        player.isCharging = true;
+        player.chargeFrame = 0;
+        player.chargeTimer = 0;
       }
       break;
   }
@@ -173,6 +158,8 @@ document.addEventListener('keyup', (e) => {
     case 'ArrowLeft': keys.left = false; break;
     case 'ArrowRight': keys.right = false; break;
     case ' ': keys.space = false; break;
+    case 'z':
+    case 'Z': keys.z = false; break;
   }
   e.preventDefault();
 });
@@ -193,6 +180,9 @@ function getPlayerSpriteFrame(action, frameIndex) {
   } else if (action === 'attack') {
     col = frameIndex % 4;
     row = 2;
+  } else if (action === 'charge') {
+    col = frameIndex % 4;
+    row = 3;
   } else {
     col = frameIndex % 4;
     row = 0;
@@ -201,7 +191,24 @@ function getPlayerSpriteFrame(action, frameIndex) {
   return { col, row };
 }
 
+function getEnemySpriteFrame(action, frameIndex) {
+  let col, row;
+
+  if (action === 'attack') {
+    col = frameIndex % 2;
+    row = 0;
+  } else {
+    col = frameIndex % 2;
+    row = 1;
+  }
+
+  return { col, row };
+}
+
 function spawnEnemies() {
+  const enemyHp = 10 + (player.level - 1) * 10;
+  const enemyAttack = 5 + (player.level - 1) * 5;
+  
   enemies = [
     {
       x: 128,
@@ -212,8 +219,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     },
     {
       x: 256,
@@ -224,8 +232,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     },
     {
       x: 512,
@@ -236,8 +245,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     },
     {
       x: 64,
@@ -248,8 +258,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     },
     {
       x: 192,
@@ -260,8 +271,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     },
     {
       x: 448,
@@ -272,8 +284,9 @@ function spawnEnemies() {
       lastAttackTime: 0,
       direction: 1,
       isMoving: true,
-      hp: 10,
-      attack: 5 + (player.level - 1)
+      hp: enemyHp,
+      maxHp: enemyHp,
+      attack: enemyAttack
     }
   ];
 }
@@ -283,26 +296,32 @@ function checkPlayerLevelUp() {
     player.exp -= player.nextLevelExp;
     player.level++;
     player.maxHp += 5;
-    player.hp = player.maxHp;
     player.attack += 5;
-    player.nextLevelExp = player.attack;
+    player.nextLevelExp = player.nextLevelExp * 2;
   }
-}
-  let col, row;
-  
-  if (action === 'attack') {
-    col = frameIndex % 2;
-    row = 0;
-  } else {
-    col = frameIndex % 2;
-    row = 1;
-  }
-  
-  return { col, row };
 }
 
 function updatePlayer(currentTime) {
-  if (player.isAttacking) {
+  if (player.isCharging) {
+    player.action = 'charge';
+    player.chargeTimer += 16;
+    player.chargeFrame = Math.floor(player.chargeTimer / ANIMATION_SPEED);
+    
+    if (player.chargeFrame >= 4) {
+      player.hp = Math.min(player.hp + 1, player.maxHp);
+      player.chargeFrame = 0;
+      
+      if (player.hp >= player.maxHp) {
+        player.isCharging = false;
+        player.chargeTimer = 0;
+      }
+    }
+    
+    if (currentTime - player.lastFrameTime > ANIMATION_SPEED) {
+      player.frame++;
+      player.lastFrameTime = currentTime;
+    }
+  } else if (player.isAttacking) {
     player.action = 'attack';
     player.attackTimer += 16;
     player.attackFrame = Math.floor(player.attackTimer / ANIMATION_SPEED);
@@ -310,7 +329,7 @@ function updatePlayer(currentTime) {
     if (player.attackFrame === 1 && player.attackTimer < ANIMATION_SPEED + 20) {
       playerBullets.push({
         x: player.x + FRAME_SIZE / 2,
-        y: player.y
+        y: player.y + FRAME_SIZE / 2
       });
     }
 
@@ -350,8 +369,10 @@ function updatePlayer(currentTime) {
 }
 
 function updateEnemy(enemy, currentTime) {
+  const attackInterval = Math.max(1000, BASE_ATTACK_INTERVAL - (player.level - 1) * 200);
+  
   if (enemy.action === 'idle') {
-    if (currentTime - enemy.lastAttackTime > ATTACK_INTERVAL) {
+    if (currentTime - enemy.lastAttackTime > attackInterval) {
       enemy.action = 'attack';
       enemy.frame = 0;
       enemy.lastFrameTime = currentTime;
@@ -382,7 +403,8 @@ function updateEnemy(enemy, currentTime) {
       if (enemy.frame === 1) {
         seeds.push({
           x: enemy.x + FRAME_SIZE / 2,
-          y: enemy.y + FRAME_SIZE
+          y: enemy.y + FRAME_SIZE / 2,
+          damage: enemy.attack
         });
       }
 
@@ -400,6 +422,22 @@ function updateSeeds() {
   for (let i = seeds.length - 1; i >= 0; i--) {
     seeds[i].y += SEED_SPEED;
 
+    const dx = seeds[i].x - (player.x + FRAME_SIZE / 2);
+    const dy = seeds[i].y - (player.y + FRAME_SIZE / 2);
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < FRAME_SIZE / 2) {
+      const baseDamage = seeds[i].damage || 1;
+      const damage = player.isCharging ? baseDamage * 2 : baseDamage;
+      player.hp -= damage;
+      if (player.isCharging) {
+        player.isCharging = false;
+        player.chargeTimer = 0;
+      }
+      seeds.splice(i, 1);
+      continue;
+    }
+
     if (seeds[i].y > canvas.height) {
       seeds.splice(i, 1);
     }
@@ -412,11 +450,38 @@ function updatePlayerBullets() {
 
     if (playerBullets[i].y < 0) {
       playerBullets.splice(i, 1);
+      continue;
+    }
+
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      const enemy = enemies[j];
+      const dx = playerBullets[i].x - (enemy.x + FRAME_SIZE / 2);
+      const dy = playerBullets[i].y - (enemy.y + FRAME_SIZE / 2);
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < FRAME_SIZE / 2) {
+        enemy.hp -= player.attack;
+        playerBullets.splice(i, 1);
+
+        if (enemy.hp <= 0) {
+          player.exp += enemy.attack;
+          killCount++;
+          checkPlayerLevelUp();
+          enemies.splice(j, 1);
+          
+          if (enemies.length === 0) {
+            spawnEnemies();
+          }
+        }
+        break;
+      }
     }
   }
 }
 
 function update(currentTime) {
+  if (!gameRunning) return;
+  
   updatePlayer(currentTime);
 
   for (const enemy of enemies) {
@@ -425,13 +490,20 @@ function update(currentTime) {
 
   updateSeeds();
   updatePlayerBullets();
+  
+  if (player.hp <= 0) {
+    player.hp = 0;
+    gameRunning = false;
+  }
+  
+  updateInfoPanel();
 }
 
 function draw() {
   drawGrid();
 
   const { col: playerCol, row: playerRow } = getPlayerSpriteFrame(player.action, player.frame);
-  
+
   ctx.drawImage(
     playerSprite,
     playerCol * FRAME_SIZE, playerRow * FRAME_SIZE,
@@ -465,6 +537,33 @@ function draw() {
     ctx.fillStyle = '#FFD700';
     ctx.fill();
   }
+
+  if (!gameRunning) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#fff';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', canvas.width / 2, canvas.height / 2);
+    ctx.font = '24px Arial';
+    ctx.fillText(`最終等級：${player.level}`, canvas.width / 2, canvas.height / 2 + 50);
+    ctx.fillText(`擊殺數：${killCount}`, canvas.width / 2, canvas.height / 2 + 90);
+    ctx.textAlign = 'left';
+  }
+}
+
+function updateInfoPanel() {
+  document.getElementById('statLevel').textContent = `${player.level}/${MAX_LEVEL}`;
+  document.getElementById('statHp').textContent = `${player.hp}/${player.maxHp}`;
+  document.getElementById('statAtk').textContent = player.attack;
+  document.getElementById('statExp').textContent = `${player.exp}/${player.nextLevelExp}`;
+  document.getElementById('statKill').textContent = killCount;
+  
+  const chargeLabel = document.querySelector('.stat-charge');
+  if (chargeLabel) {
+    chargeLabel.style.display = player.isCharging ? 'block' : 'none';
+  }
 }
 
 function gameLoop(currentTime) {
@@ -476,6 +575,7 @@ function gameLoop(currentTime) {
 playerSprite.onload = () => {
   enemySprite.onload = () => {
     bgImage.onload = () => {
+      spawnEnemies();
       requestAnimationFrame(gameLoop);
     };
   };
