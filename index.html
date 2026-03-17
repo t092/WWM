@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>武林萌傳 - 遊戲入口</title>
+<title>偉大的綠洲 - 遊戲入口</title>
 <style>
 * {
   margin: 0;
@@ -21,22 +21,12 @@ body {
   font-family: 'Microsoft YaHei', '微軟正黑體', Arial, sans-serif;
 }
 
-h1 {
-  color: #fff;
-  font-size: 48px;
-  margin-bottom: 30px;
-  text-shadow: 0 0 20px #f00, 0 0 40px #f00;
-  animation: glow 2s ease-in-out infinite alternate;
-}
-
-@keyframes glow {
-  from {
-    text-shadow: 0 0 20px #f00, 0 0 40px #f00;
-  }
-  to {
-    text-shadow: 0 0 30px #f00, 0 0 60px #f00;
-  }
-}
+.title-image {
+            width: 800px;
+            height: auto;
+            margin-bottom: 30px;
+            display: block;
+        }
 
 .video-container {
   margin-bottom: 30px;
@@ -73,9 +63,9 @@ video {
 </style>
 </head>
 <body>
-<h1>武林萌傳</h1>
+    <img src="Title1.png" alt="偉大的綠洲" class="title-image">
 
-<div class="video-container">
+    <div class="video-container">
   <video id="openingVideo" muted>
     <source src="WWMOPENINGs.mp4" type="video/mp4">
     您的瀏覽器不支援影片播放。
@@ -85,22 +75,16 @@ video {
 <button class="start-btn" onclick="startGame()">開始遊戲</button>
 
 <script>
-const video = document.getElementById('openingVideo');
+        const video = document.getElementById('openingVideo');
 
-// 自動播放影片
-video.play().catch(e => {
-  console.log('Autoplay prevented:', e);
-});
+        // 自動播放影片
+        video.play().catch(e => {
+            console.log('Autoplay prevented:', e);
+        });
 
-// 讓影片循環播放
-video.addEventListener('ended', () => {
-  video.currentTime = 0;
-  video.play();
-});
-
-function startGame() {
-  window.location.href = 'GameLV1.html';
-}
-</script>
+        function startGame() {
+            window.location.href = 'GameLV1.html';
+        }
+        </script>
 </body>
 </html>
